@@ -15,3 +15,5 @@
   - [ ] Tìm tâm laser
 - [ ] 15/6/2024
   - [ ] Tìm hiểu cách viết thuyết minh nghiêng cứu khoa học
+- [ ] 16/6/2024
+  - [ ] Tổng hợp 
