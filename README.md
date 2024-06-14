@@ -1,14 +1,14 @@
 # Larser_vision
 ## Kế hoạch tuần 10/6 - 16/6/2024
-- [ ] 10/6/2024
-  - [ ] Ôn lại python
-- [ ] 11/6/2024
-  - [ ] Tìm hiểu COMPUTER VISION
-- [ ] 12/6/2024
-  - [ ] Tìm hiểu COMPUTER VISION trên python
-- [ ] 13/6/2024
-  - [ ] Tìm hiểu code phần Calib_Camera
-  - [ ] Tìm hiểu code phần Calib_Handeye
+- [x] 10/6/2024
+  - [x] Ôn lại python
+- [x] 11/6/2024
+  - [x] Tìm hiểu COMPUTER VISION
+- [x] 12/6/2024
+  - [x] Tìm hiểu COMPUTER VISION trên python
+- [x] 13/6/2024
+  - [x] Tìm hiểu code phần Calib_Camera
+  - [x] Tìm hiểu code phần Calib_Handeye
 - [ ] 14/6/2024
   - [ ] Tìm hiểu code phần tìm mặt phẳng laser
   - [ ] Tìm hiểu các bước xử lí ảnh
