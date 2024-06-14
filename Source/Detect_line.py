@@ -1,10 +1,18 @@
 import cv2 as cv
 import numpy as np
+import glob
+import os
 import para_of_checkerboard as pack
 import pro_paths as pp
 
-path = 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Calib_data/Checkerboard_calib_laser/'
-pointinlaserplane = []
+Checkerboard_calib_laser_path = pp.Checkerboard_calib_laser_path
+
+#pointinlaserplane = []
+
+def load_images(image_dir, image_prefix, image_format):
+    image_paths = glob.glob(os.path.join(image_dir,f"{image_prefix}*.{image_format}"))
+    return image_paths
+
 
 def create_objpoint():
         width = 4
@@ -98,10 +106,12 @@ def laser_Position(checkerPath, laserPath):
     cv.destroyAllWindows()
 
 
-def laser_Calibrate():
-    checkerPath = path + 'checker_01.jpg'
-    laserPath = path + 'laser_01.jpg'
+def laser_Calibrate(path):
+    checkerPath = path + 'checker_03.jpg'
+    laserPath = path + 'laser_03.jpg'
     laser_Position(checkerPath, laserPath)
+
+     
 
 
 if __name__ == '__main__':
