@@ -12,9 +12,9 @@
 - [ ] 14/6/2024
   - [ ] Tìm hiểu code phần tìm mặt phẳng laser
   - [ ] Tìm hiểu các bước xử lí ảnh
-  - [ ] Tìm tâm laser
+  - [x] Tìm tâm laser
 - [ ] 15/6/2024
   - [ ] Tìm hiểu cách viết thuyết minh nghiêng cứu khoa học
 - [ ] 16/6/2024
   - [ ] Tổng hợp, nộp thầy
-        
+         
