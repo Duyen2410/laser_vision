@@ -19,7 +19,7 @@ def load_pos(path):
     return m
 
 
-# Hàm prepare_object_points: Tạo tọa độ các điểm 3D trong không gian thực cho bàn cờ
+# Hàm create_objpoint: Tạo tọa độ các điểm 3D trong không gian thực cho bàn cờ
 # args: Kích thước bàn cờ (width, height), kích thước từng ô cờ (square_size)
 # return: Tạo độ các điểm trong không gian thực
 def create_objpoint(width, height, square_size):

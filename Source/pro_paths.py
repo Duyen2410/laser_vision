@@ -4,3 +4,4 @@ save_calib_handeye  =  'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/S
 R_path = 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Calib_data/handeye/R.txt'
 t_path = 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Calib_data/handeye/t.txt'
 Checkerboard_calib_laser_path = 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Calib_data/Checkerboard_calib_laser/'
+Laser_position_output_path = 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Output/Laser_position_output/'

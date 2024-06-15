@@ -1,27 +1,34 @@
 import cv2 as cv
 import numpy as np
+from PIL import Image
 import glob
 import os
 import para_of_checkerboard as pack
 import pro_paths as pp
 
-Checkerboard_calib_laser_path = pp.Checkerboard_calib_laser_path
-
-#pointinlaserplane = []
-
+# Hàm load_images: Tải danh sách đường dẫn hình ảnh từ một thư mục cụ thể
+# args: đường dẫn tới thư mục chứa hình ảnh (image_dir), tiền tố (image_prefix), định dạng (image_formax)
+# return: đường dẫn tới danh sách hình ảnh
 def load_images(image_dir, image_prefix, image_format):
     image_paths = glob.glob(os.path.join(image_dir,f"{image_prefix}*.{image_format}"))
     return image_paths
 
-
+# Hàm create_objpoint: Tạo tọa độ các điểm 3D trong không gian thực cho bàn cờ
+# args: Kích thước bàn cờ (width, height), kích thước từng ô cờ (square_size)
+# return: Tạo độ các điểm trong không gian thực
 def create_objpoint():
-        width = 4
-        height = 5
-        square_size = 30
-        objp = np.zeros((height * width, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:width, 0:height].T.reshape(-1, 2)
-        objp = objp * square_size  # Create real world coords. Use your metric.
-        return objp
+    '''
+    1. Tạo một mảng hai chiều để chứa các đối tượng trong không gian 3 chiều.
+    2. Trong đó hai cột đầu là tọa độ các điểm 2D.
+    3. Kích thước thực được tính bằng hệ đơn vị thực.
+    '''    
+    width = 4
+    height = 5
+    square_size = 30
+    objp = np.zeros((height * width, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:width, 0:height].T.reshape(-1, 2)
+    objp = objp * square_size  # Create real world coords. Use your metric.
+    return objp
 
 def load_camera_params(save_camera_params_path_arg):
     cv_file = cv.FileStorage(save_camera_params_path_arg, cv.FILE_STORAGE_READ)
@@ -30,18 +37,15 @@ def load_camera_params(save_camera_params_path_arg):
     cv_file.release()
     return camera_matrix, dist_matrix
 
-def processing_raw_image(checkerPath_arg, laserPath_arg):
-    chessraw = cv.imread(checkerPath_arg)
-    chess = cv.cvtColor(chessraw, cv.COLOR_BGR2GRAY)   
-    laserraw = cv.imread(laserPath_arg)
-    laser = cv.cvtColor(laserraw, cv.COLOR_BGR2GRAY)   
-    return chess, laser
+def processing_raw_image(Image_Path_arg):
+    Imgraw = cv.imread(Image_Path_arg)
+    Img = cv.cvtColor(Imgraw, cv.COLOR_BGR2GRAY)     
+    return Img
      
-def undistort_images(rows_arg, cols_arg, chess_arg, laser_arg, camera_matrix_arg, dist_matrix_arg):
+def undistort_images(rows_arg, cols_arg, Img_arg, camera_matrix_arg, dist_matrix_arg):
     newcameramtx, _ = cv.getOptimalNewCameraMatrix(camera_matrix_arg, dist_matrix_arg, (rows_arg, cols_arg), 1, (rows_arg, cols_arg))
-    chess_undis = cv.undistort(chess_arg, camera_matrix_arg, dist_matrix_arg, None, newcameramtx)
-    laser_undis = cv.undistort(laser_arg, camera_matrix_arg, dist_matrix_arg, None, newcameramtx)
-    return chess_undis, laser_undis
+    Image_undis = cv.undistort(Img_arg, camera_matrix_arg, dist_matrix_arg, None, newcameramtx)
+    return Image_undis
 
 def process_laser_image(laser_undis_arg):
     blur = cv.GaussianBlur(laser_undis_arg,(7,7),0)                 
@@ -67,55 +71,40 @@ def LaserCenter(img):
         return center
 
 
-def find_corners(size_of_checker_arg, camera_mat_arg, dist_mat_arg, chess_undist_arg):
-    ret, corners = cv.findChessboardCorners(chess_undist_arg, size_of_checker_arg, None, cv.CALIB_CB_ADAPTIVE_THRESH)
-
-    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 3000, 0.00001)
-    corners_pos1 = cv.cornerSubPix(chess_undist_arg,corners,(11,11),(-1,-1), criteria)
-    chess_undis = cv.drawChessboardCorners(chess_undist_arg, size_of_checker_arg, corners_pos1,ret)
-
-    if ret:
-        objp = create_objpoint()
-        retval, rvec_pos, tvec = cv.solvePnP(objp,corners_pos1, camera_mat_arg, dist_mat_arg)
-        rotation_matrix = np.zeros(shape=(3,3))
-        cv.Rodrigues(rvec_pos, rotation_matrix)
-    
-
-def laser_Position(checkerPath, laserPath):
-    print('get 5 points')
-    size_of_checker = (4, 5)
-    chess_image, laser_image = processing_raw_image(checkerPath,laserPath)
+def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i):
+    print(i+1)
+    # chess_image = processing_raw_image(checker_image_Path)
+    laser_image = processing_raw_image(laser_image_Path)
     rows,cols = laser_image.shape
-    save_camera_params_path = pp.save_camera_params_path
-    camera_mat, dist_mat = load_camera_params(save_camera_params_path)
-    print('read camera parameters success')
-    fx = camera_mat[0][0]
-    fy = camera_mat[1][1]
-    cx = camera_mat[0][2]
-    cy = camera_mat[1][2]
-
-    chess_undist, laser_undist = undistort_images(rows, cols, chess_image, laser_image, camera_mat, dist_mat)
-    
-    find_corners(size_of_checker, camera_mat, dist_mat, chess_undist)
-    
-
+    laser_undist = undistort_images(rows, cols,laser_image, camera_mat, dist_mat)
+    # chess_undist = undistort_images(rows, cols,chess_image, camera_mat, dist_mat)
     thinned, closing = process_laser_image(laser_undist)
     cv.imshow('close', closing)
     cv.imshow('thin', thinned)
     cv.waitKey(0)
     cv.destroyAllWindows()
-
-
-def laser_Calibrate(path):
-    checkerPath = path + 'checker_03.jpg'
-    laserPath = path + 'laser_03.jpg'
-    laser_Position(checkerPath, laserPath)
-
-     
-
+    return thinned
+    
 
 if __name__ == '__main__':
-    # laser_Position()
-    laser_Calibrate()
+
+    Checkerboard_calib_laser_path = pp.Checkerboard_calib_laser_path
+    Laser_position_output_path = pp.Laser_position_output_path
+    image_checker_prefix = 'checker_'
+    image_laser_prefix = 'laser_'
+    image_format = 'jpg'
+    checkerPaths = load_images(Checkerboard_calib_laser_path, image_checker_prefix, image_format)
+    laserPaths = load_images(Checkerboard_calib_laser_path, image_laser_prefix, image_format)
+    save_camera_params_path = pp.save_camera_params_path
+    camera_mat, dist_mat = load_camera_params(save_camera_params_path)
+    print('read camera parameters success')
+    for i, checker_img_path, laser_img_path in zip(range(16), checkerPaths, laserPaths):
+        thinned = laser_Position(checker_img_path, laser_img_path, camera_mat, dist_mat,i)
+        thinned_Image = Image.fromarray(thinned)
+        thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
+        
+
+
+        
 
     
