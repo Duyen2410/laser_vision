@@ -124,66 +124,50 @@ def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, t
     return pointinlaserplane
 
 def fit_plane_tls(points):
-    """
-    Fit a plane to a set of points using the Total Least Squares method.
-
-    Parameters:
-    points (ndarray): An Nx3 array of points (x, y, z).
-
-    Returns:
-    (a, b, c, d): Coefficients of the plane equation ax + by + cz + d = 0.
-    """
-    # Ensure points is a numpy array
-    points = np.asarray(points)
+    xs = points[:,0]
+    ys = points[:,1]
+    zs = points[:,2]
+    print("sx =" ,xs)
+    # plot raw data
+    plt.figure()
+    ax = plt.subplot(111, projection='3d')
+    ax.scatter(xs, ys, zs, color='b')
     
-    # Calculate the centroid of the points
-    centroid = np.mean(points, axis=0)
     
-    # Center the points by subtracting the centroid
-    centered_points = points - centroid
-    
-    # Perform Singular Value Decomposition (SVD)
-    _, _, vh = np.linalg.svd(centered_points)
-    
-    # The normal vector of the plane is the last row of vh
-    normal_vector = vh[-1][:]
-    print (normal_vector)
-    
+    tmp_A = []
+    tmp_b = []
+    for i in range(len(xs)):
+        tmp_A.append([xs[i], ys[i], 1])
+        tmp_b.append(zs[i])
+    b = np.matrix(tmp_b).T
+    A = np.matrix(tmp_A)
+    fit = (A.T * A).I * A.T * b
+    errors = b - A * fit
+    residual = np.linalg.norm(errors)
 
-    
-    # Plane equation is given by a*x + b*y + c*z + d = 0
-    # Where (a, b, c) is the normal vector and d can be found using the centroid
-    a, b, c = normal_vector
-    d = -np.dot(normal_vector, centroid)
-    
-    return a, b, c, d
+    print("solution:")
+    print("%f x + %f y + %f = z" % (fit[0], fit[1], fit[2]))
+    print("errors:")
+    print(errors)
+    print("residual:")
+    print(residual)
 
-def plot_plane(a, b, c, d, points=None):
-    """
-    Plot a plane given by the equation ax + by + cz + d = 0.
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    X,Y = np.meshgrid(np.arange(xlim[0], xlim[1]),
+                    np.arange(ylim[0], ylim[1]))
+    Z = np.zeros(X.shape)
+    for r in range(X.shape[0]):
+        for c in range(X.shape[1]):
+            Z[r,c] = fit[0] * X[r,c] + fit[1] * Y[r,c] + fit[2]
+    ax.plot_wireframe(X,Y,Z, color='k')
 
-    Parameters:
-    a, b, c, d (float): Coefficients of the plane equation.
-    points (ndarray): Optional Nx3 array of points to plot.
-    """
-    # Create a meshgrid for the plane
-    xx, yy = np.meshgrid(range(-10, 11), range(-10, 11))
-    zz = (-a * xx - b * yy - d) / c
-
-    # Plotting the plane
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_surface(xx, yy, zz, alpha=0.5, rstride=100, cstride=100)
-
-    # Plotting the points if provided
-    if points is not None:
-        ax.scatter(points[:, 0], points[:, 1], points[:, 2], color='red')
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
     plt.show()
+    
+
 
 
 
@@ -211,11 +195,10 @@ if __name__ == '__main__':
         pointinlaserplanes.extend(pointlaser)
     
         pointinlaserplane_array = np.array(pointinlaserplanes)
+    print(pointinlaserplane_array)
+    fit_plane_tls(pointinlaserplane_array)  
 
-    a, b, c, d =  fit_plane_tls(pointinlaserplane_array)  
-    plot_plane(a, b, c, d, points=None)
 
-    print(f"Plane equation: {a:.4f}x + {b:.4f}y + {c:.4f}z + {d:.4f} = 0")
 
         
 
