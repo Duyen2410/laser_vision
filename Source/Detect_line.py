@@ -27,9 +27,11 @@ def load_images(image_dir, image_prefix, image_format):
 #**************************************************************************************
 def create_objpoint():
     '''
-    1. Tạo một mảng hai chiều để chứa các đối tượng trong không gian 3 chiều.
+    ///////////////////////////////////////////////////////////////////////////////////
+    1. Tạo một mảng hai chiều để chứa các đối tượng trong không gian 3 chiều.  
     2. Trong đó hai cột đầu là tọa độ các điểm 2D.
     3. Kích thước thực được tính bằng hệ đơn vị thực.
+    ///////////////////////////////////////////////////////////////////////////////////
     '''    
     width = 4
     height = 5
@@ -39,6 +41,12 @@ def create_objpoint():
     objp = objp * square_size  # Create real world coords. Use your metric.
     return objp
 
+
+#**************************************************************************************
+# Hàm load_camera_params: Tải các tham số camera từ tệp lưu trữ
+# args: Đường dẫn tới tệp chứa các tham số camera được lưu trữ (save_camera_params_path_arg)
+# return: Các tham số camera từ tệp-ma trận thông số nội, ma trận hệ số nhiễu (camera_matrix, dist_matrix)
+#**************************************************************************************
 def load_camera_params(save_camera_params_path_arg):
     cv_file = cv.FileStorage(save_camera_params_path_arg, cv.FILE_STORAGE_READ)
     camera_matrix = cv_file.getNode("instrinsic").mat()
@@ -46,17 +54,43 @@ def load_camera_params(save_camera_params_path_arg):
     cv_file.release()
     return camera_matrix, dist_matrix
 
+
+#**************************************************************************************
+# Hàm load_images: Xử lí ảnh thô bằng cách chuyển nó sang ảnh xám
+# args: Đường dẫn tới tệp hình ảnh cần xử lí
+# return: Ảnh xám (Img)
+#**************************************************************************************
 def processing_raw_image(Image_Path_arg):
     Imgraw = cv.imread(Image_Path_arg)
     Img = cv.cvtColor(Imgraw, cv.COLOR_BGR2GRAY)     
     return Img
-     
+
+
+#**************************************************************************************
+# Hàm load_images: Hiệu chỉnh hình ảnh bị nhiễu bằng cách sử dụng sử dụng các tham số camera
+# args: Kích thước ảnh (rows_arg, cols_arg), Hình ảnh bị nhiễu (Img_arg), Ma trận thông số nội (camera_matrix_arg), Ma trận hệ số nhiễu (dist_matrix_arg) 
+# return: Hình ảnh đã loại bỏ hệ số nhiễu (Image_undis)
+#**************************************************************************************
 def undistort_images(rows_arg, cols_arg, Img_arg, camera_matrix_arg, dist_matrix_arg):
     newcameramtx, _ = cv.getOptimalNewCameraMatrix(camera_matrix_arg, dist_matrix_arg, (rows_arg, cols_arg), 1, (rows_arg, cols_arg))
     Image_undis = cv.undistort(Img_arg, camera_matrix_arg, dist_matrix_arg, None, newcameramtx)
     return Image_undis
 
+#**************************************************************************************
+# Hàm process_laser_image: Xử lí ảnh 
+# args: Hình ảnh đã loại hệ số nhiễu (laser_undis_arg)
+# return: Ảnh đã xử lí closing(clos), ảnh đã xử lí thinned(thin)
+#**************************************************************************************
+
 def process_laser_image(laser_undis_arg):
+    '''
+    ///////////////////////////////////////////////////////////////////////////////////
+    1. Làm mờ ảnh bằng lọc Gauss.  
+    2. Xử lí ảnh bằng Threshold.
+    3. Xử lí closing.
+    4. Xử lí thinned.
+    ///////////////////////////////////////////////////////////////////////////////////
+    '''
     blur = cv.GaussianBlur(laser_undis_arg,(7,7),0)                 
     _, thresh = cv.threshold(blur, 120, 255, cv.THRESH_BINARY)
     closing = thresh
@@ -65,6 +99,12 @@ def process_laser_image(laser_undis_arg):
     thin = cv.ximgproc.thinning(closing)
     return thin, clos   
 
+
+#**************************************************************************************
+# Hàm LaserCenter: Tìm tâm đường laser.
+# args: Hình ảnh cần xử lí (img).
+# return: Tọa độ tâm đường laser (center)
+#**************************************************************************************
 def LaserCenter(img):
         center = np.zeros_like(img)
         # find the center point
@@ -81,7 +121,24 @@ def LaserCenter(img):
         return center
 
 
+#**************************************************************************************
+# Hàm laser_Position: Tách line (giả sử đường laser là màu trắng)
+# args: đường dẫn tới tệp ảnh checkerboard (chess_image_Path), đường dẫn tới tệp ảnh laser (laser_image_Path)
+# ma trận thông số nội (camera_mat), ma trận hệ số nhiễu (dist_mat)
+# return: ảnh xử lí thinned (thinned), hình ảnh laser đã xử lí (laser_undist), vecto tịnh tiến (tvec)
+#**************************************************************************************
 def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i):
+    '''
+    ///////////////////////////////////////////////////////////////////////////////////
+    1. Định nghĩa kích thước bàn cờ.
+    2. Đọc và xử lí ảnh thô.
+    3. Hiệu chỉnh loại bỏ nhiễu hình ảnh.
+    4. Xác định tiêu chí để tìm kiếm chính xác góc.
+    5. Vẽ các góc bàn cờ trên ảnh.
+    6. Nếu tìm thấy bàn cờ, tính toán các ma trận chuyển.
+    7. Xử lí ảnh laser closing, thinned.
+    ///////////////////////////////////////////////////////////////////////////////////
+    '''
     size_of_checker = (4, 5)
     print(i+1)
     # chess_image = processing_raw_image(checker_image_Path)
@@ -94,7 +151,6 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 3000, 0.00001)
     corners_pos1 = cv.cornerSubPix(chess_undist,corners,(11,11),(-1,-1), criteria)
     chess_undis = cv.drawChessboardCorners(chess_undist, size_of_checker, corners_pos1,ret)
-
     if ret:
         objp = create_objpoint()
         retval, rvec_pos, tvec = cv.solvePnP(objp,corners_pos1, camera_mat, dist_mat)
@@ -107,7 +163,13 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
     cv.destroyAllWindows()
     return thinned, laser_undist, tvec
 
-
+#**************************************************************************************
+# Hàm extract_laser_point: Tìm tọa độ các điểm trên mặt phẳng laser trong hệ tọa độ camera
+# args: Hình ảnh đã xử lí thinned (thinned), các hệ số của ma trận hệ số nhiễu (fx, fy, cx, cy)
+# ma trận xoay từ hệ tọa độ thực sang hệ tọa độ camera (rotation_matrix), 
+# Hình ảnh đã xử loại nhiễu (laser_undis), vector tịnh tiến (tvec)
+# return: Danh sách điểm trên mặt phẳng laser (pointinlaserplane)
+#**************************************************************************************
 def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, tvec):
     pointinlaserplane = []
     rows, cols = laser_undis.shape
@@ -123,17 +185,15 @@ def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, t
 
     return pointinlaserplane
 
+#**************************************************************************************
+# Hàm load_images: Tải danh sách đường dẫn hình ảnh từ một thư mục
+# args: đường dẫn tới thư mục chứa hình ảnh (image_dir), tiền tố (image_prefix), định dạng (image_formax)
+# return: đường dẫn tới danh sách hình ảnh
+#**************************************************************************************
 def fit_plane_tls(points):
     xs = points[:,0]
     ys = points[:,1]
     zs = points[:,2]
-    print("sx =" ,xs)
-    # plot raw data
-    plt.figure()
-    ax = plt.subplot(111, projection='3d')
-    ax.scatter(xs, ys, zs, color='b')
-    
-    
     tmp_A = []
     tmp_b = []
     for i in range(len(xs)):
@@ -144,13 +204,23 @@ def fit_plane_tls(points):
     fit = (A.T * A).I * A.T * b
     errors = b - A * fit
     residual = np.linalg.norm(errors)
-
     print("solution:")
     print("%f x + %f y + %f = z" % (fit[0], fit[1], fit[2]))
     print("errors:")
     print(errors)
     print("residual:")
     print(residual)
+    return xs, ys, zs, fit
+
+#**************************************************************************************
+# Hàm plot_plane: Vẽ đồ thị
+# args: Tọa độ các điểm trên mặt phẳng laser (xs, ys, zs), hệ số mặt phẳng fit (fit)
+# return: None
+#**************************************************************************************
+def plot_plane(xs, ys, zs, fit):
+    plt.figure()
+    ax = plt.subplot(111, projection='3d')
+    ax.scatter(xs, ys, zs, color='b')
 
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
@@ -161,17 +231,23 @@ def fit_plane_tls(points):
         for c in range(X.shape[1]):
             Z[r,c] = fit[0] * X[r,c] + fit[1] * Y[r,c] + fit[2]
     ax.plot_wireframe(X,Y,Z, color='k')
-
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     plt.show()
-    
-
-
-
 
 if __name__ == '__main__':
+    '''
+    ///////////////////////////////////////////////////////////////////////////////////
+    1. Tải ma trận thông số nội, ma hệ số nhiễu.
+    2. Quét qua từng ảnh checkerboard đồng thời với ảnh laser tương ứng.
+    3. Tách line.
+    4. Lưu ảnh vào tệp.
+    5. Tìm tập tọa độ điểm trên mặt phẳng laser.
+    6. Tìm mặt phẳng laser.
+    7. Vẽ đồ thị.
+    ///////////////////////////////////////////////////////////////////////////////////
+    '''
     pointinlaserplanes = []
     Checkerboard_calib_laser_path = pp.Checkerboard_calib_laser_path
     Laser_position_output_path = pp.Laser_position_output_path
@@ -193,10 +269,12 @@ if __name__ == '__main__':
         thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
         pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, camera_mat,laser_und,tvec)
         pointinlaserplanes.extend(pointlaser)
-    
         pointinlaserplane_array = np.array(pointinlaserplanes)
     print(pointinlaserplane_array)
-    fit_plane_tls(pointinlaserplane_array)  
+    x, y, z, fix_pl = fit_plane_tls(pointinlaserplane_array)
+    plot_plane(x, y, z, fix_pl)
+
+    
 
 
 
