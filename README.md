@@ -9,4 +9,4 @@
 - [x] Tìm tâm laser
 - [ ] Tìm hiểu cách viết thuyết minh nghiên cứu khoa học
 - [ ] Tổng hợp, nộp thầy
-$ x = a $     
+$a \ne 0$     
