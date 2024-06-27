@@ -1,71 +1,47 @@
 import numpy as np
 import time
-from sklearn.linear_model import RANSACRegressor
 from sklearn.metrics import mean_squared_error
-from collections import defaultdict
-from itertools import product
-import random
-from sklearn.metrics import mean_squared_error
-def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, d_res=0.1):
+
+def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
     points = np.asarray(points)
     
+
     # Define the ranges for theta, phi, and d
     theta_max = np.pi
     phi_max = 2 * np.pi
-    d_max = np.linalg.norm(points, axis=1).max()
+    rho_max = np.linalg.norm(points, axis=1).max()
     
     # Create the accumulator array
     theta_bins = int(theta_max / theta_res)
     phi_bins = int(phi_max / phi_res)
-    d_bins = int((2*d_max) / d_res)
-    accumulator = np.zeros((theta_bins, phi_bins, d_bins))
-    
+    rho_bins = int((2*rho_max) / rho_res)
+    accumulator = np.zeros((theta_bins, phi_bins, rho_bins))
+
+
     for x, y, z in points:
-        for theta_bin in range(theta_bins):
-            theta = theta_bin * theta_res
-            for phi_bin in range(phi_bins):
-                phi = phi_bin * phi_res
+        for theta_idx in range(theta_bins):
+            theta = theta_idx * theta_res
+            for phi_idx in range(phi_bins):
+                phi = phi_idx * phi_res
                 a = np.sin(theta) * np.cos(phi)
                 b = np.sin(theta) * np.sin(phi)
                 c = np.cos(theta)
+                rho = a * x + b * y + c * z
+                rho_idx = int((rho + rho_max)/theta_res)
+                accumulator[theta_idx, phi_idx, rho_idx] += 1
 
-                d = -(a * x + b * y + c * z)
-                
-                # Normalize (a, b, c)
-                norm = np.sqrt(a**2 + b**2 + c**2)
-                a /= norm
-                b /= norm
-                c /= norm
-                d /= norm
-                
-                # Discretize d
-                d_bin = int((d + d_max) / d_res)
-                
-                if 0 <= d_bin < d_bins:
-                    accumulator[theta_bin, phi_bin, d_bin] += 1
+    idx = np.unravel_index(np.argmax(accumulator), accumulator.shape)
+    theta_idx_f, phi_idx_f, rho_idx_f = idx
+    best_theta = theta_idx_f * theta_res
+    best_phi = phi_idx_f * phi_res
+    best_rho = rho_idx_f * rho_res - rho_max
 
-    # Find the index of the maximum value in the accumulator
-    max_idx = np.unravel_index(np.argmax(accumulator), accumulator.shape)
-    best_theta_bin, best_phi_bin, best_d_bin = max_idx
-    best_theta = best_theta_bin * theta_res
-    best_phi = best_phi_bin * phi_res
-    best_d = best_d_bin * d_res - d_max
-    
-    # Calculate the normal vector (a, b, c)
     a = np.sin(best_theta) * np.cos(best_phi)
     b = np.sin(best_theta) * np.sin(best_phi)
     c = np.cos(best_theta)
-    
-    # Normalize (a, b, c)
-    norm = np.sqrt(a**2 + b**2 + c**2)
-    a /= norm
-    b /= norm
-    c /= norm
-    best_d /= norm
-    
-    best_fit_plane = (a, b, c, best_d)
-    return best_fit_plane
 
+    best_fit_plane = (a, b, c, -best_rho)
+    return best_fit_plane
 
 np.random.seed(0)
 num_points = 1000
