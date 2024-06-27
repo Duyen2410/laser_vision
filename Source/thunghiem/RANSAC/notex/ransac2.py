@@ -7,19 +7,29 @@ from itertools import product
 import random
 from scipy.ndimage import gaussian_filter
 
-def ransac_plane_fitting(points):
+def ransac_plane_fitting(points, n=200, t=5, k=250, m=1000):
 
     def select_random(points, n):
-        return points[random.sample(range(points.shape[0]), n)]
+        indices = random.sample(range(points.shape[0]), n)
+        return points[indices]
 
-    # Hàm để tính khoảng cách từ điểm đến mô hình
+    # Hàm để tính khoảng cách từ điểm đến mô hình mặt phẳng
     def distance(point, model):
-        a, b, c = model
+        a, b, c, d = model
         x, y, z = point
-        return np.abs(a * x + b * y + z + c) / np.sqrt(a**2 + b**2 + 1**2)
+        return np.abs(a * x + b * y + c * z + d) / np.sqrt(a**2 + b**2 + c**2)
 
-    # Hàm để khớp mô hình với các điểm dữ liệu
+    # Hàm để khớp mô hình mặt phẳng với các điểm dữ liệu
     def fit(points):
+        xs = points[:,0]
+        ys = points[:,1]
+        zs = points[:,2]
+        tmp_A = np.c_[xs, ys, zs, np.ones(xs.shape[0])]
+        U, S, Vt = np.linalg.svd(tmp_A)
+        model = Vt[-1, :] # Giải pháp là hàng cuối cùng của Vt
+        return model
+        """
+    
         xs = points[:,0]
         ys = points[:,1]
         zs = points[:,2]
@@ -33,44 +43,33 @@ def ransac_plane_fitting(points):
         fit_m = (A.T * A).I * A.T * b
         errors = b - A * fit_m
         return fit_m.A1
+        """
 
-    # Hàm để tính lỗi mô hình
+    # Hàm để tính lỗi trung bình của mô hình
     def calculate_error(data, model):
-       return np.mean([distance(point, model) for point in data])
-
-
-    # Các thông số RANSAC
-    n = 200  # Số mẫu tối thiểu để khớp mô hình
-    t = 5 # Ngưỡng khoảng cách
-    k = 250  # Số lượng inliers tối thiểu
-    m = 2000 # Số lần lặp lại
+       return np.mean(np.apply_along_axis(distance, 1, data, model))
 
     # Thuật toán RANSAC
     best_fit = None
     best_error = float('inf')
-    max_in = 0
-    for i in range(m):
-        temp_inliers = select_random(points, n)
-        temp_inliers_add = []
-        temp_model = fit(temp_inliers)
+    max_inliers = 0
+    for i in range(50):
+        sample = select_random(points, n)
+        model = fit(sample)
+        # Tính toán khoảng cách cho tất cả các điểm
+        distances = np.apply_along_axis(distance, 1, points, model)
+        inliers = points[distances < t]
 
-        for point in points:
-            if point.tolist() not in temp_inliers.tolist():
-                if distance(point, temp_model) < t:
-                    print(distance(point, temp_model))
-                    temp_inliers_add.append(point)
-        temp_inliers_add = np.array(temp_inliers_add)
-        if len(temp_inliers_add) > max_in:
-            max_in = len(temp_inliers_add)
-            all_inliers = np.vstack((temp_inliers, temp_inliers_add))
-            new_model = fit(all_inliers)
-            new_error = calculate_error(all_inliers, new_model)
+        if len(inliers) > max_inliers:
+            max_inliers = len(inliers)
+            new_model = fit(inliers)
+            new_error = calculate_error(inliers, new_model)
             if new_error < best_error:
                 best_error = new_error
                 best_fit = new_model
-        
-    print(best_fit)
+                
     return best_fit, best_error
+
 
 np.random.seed(0)
 num_points = 1000
@@ -84,7 +83,7 @@ start_time = time.time()
 best_plane, best_error = ransac_plane_fitting(points)
 custom_time = time.time() - start_time
 
-a, b, c = best_plane
+a, b, c, d = best_plane
 
 print(best_error)
 
@@ -93,14 +92,14 @@ def evaluate_models(points, best_plane_ransac):
     true_z = points[:, 2]
     
     # Dự đoán z từ mô hình RANSAC
-    a_r, b_r, c_r = best_plane_ransac
-    pred_z_ransac = (a_r * X[:, 0] + b_r * X[:, 1] + c_r)
+    a_r, b_r, c_r, d_r = best_plane_ransac
+    pred_z_ransac = -(a_r * X[:, 0] + b_r * X[:, 1] + d_r)/c_r
     mse_ransac = mean_squared_error(true_z, pred_z_ransac)
     return mse_ransac
 
 mse_ransac = evaluate_models(points, best_plane)
 
-print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
+print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {-a/c:.4f} * x + {-b/c:.4f} * y + {-d/c:.4f}")
 
 print(f"Thời gian thực thi với RANSAC tự triển khai: {custom_time:.4f} giây")
 

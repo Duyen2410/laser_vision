@@ -1,15 +1,15 @@
 import numpy as np
 import random
-from scipy.ndimage import maximum_filter
-from sklearn.preprocessing import normalize
 import time
 from sklearn.metrics import mean_squared_error
-
-
 import numpy as np
 
 def detect_best_plane(D, k_max=1000, n = 100, theta_res=0.05, phi_res=0.05, rho_res=0.05):
+
     points = np.asarray(D)
+    xs = points[:,0]
+    ys = points[:,1]
+    zs = points[:,2]
     theta_max = np.pi
     phi_max = 2 * np.pi
     rho_max = np.linalg.norm(points, axis=1).max()
@@ -58,19 +58,19 @@ def detect_best_plane(D, k_max=1000, n = 100, theta_res=0.05, phi_res=0.05, rho_
     c = np.cos(best_theta)
     best_fit_planes = (a, b, c, best_rho)
 
-    return best_fit_planes
+    return xs, ys, zs, best_fit_planes
 
 
 np.random.seed(0)
 num_points = 1000
 X = np.random.rand(num_points, 2) * 100
 noise = np.random.randn(num_points) * 0.5
-Z = 3 * X[:, 0] + 2 * X[:, 1] + 1000 + noise
+Z = 3 * X[:, 0] + 2 * X[:, 1] + 100 + noise
 points = np.column_stack((X, Z))
 
 # Phương pháp Hough transform
 start_time = time.time()
-best_fit = detect_best_plane(points, k_max= 400, n = 800, theta_res=0.05, phi_res=0.05, rho_res=0.05)
+_, _, _, best_fit = detect_best_plane(points, k_max= 200, n = 600, theta_res=0.05, phi_res=0.05, rho_res=0.05)
 hough_time = time.time() - start_time
 
 a_h, b_h, c_h, d_h = float(best_fit[0]), float(best_fit[1]), float(best_fit[2]), float(best_fit[3])

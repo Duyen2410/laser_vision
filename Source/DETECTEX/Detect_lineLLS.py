@@ -3,10 +3,12 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn.metrics import mean_squared_error
 import glob
 import os
 import scipy
 import para_of_checkerboard as pack
+import time
 import pro_paths as pp
 
 
@@ -157,10 +159,10 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
         rotation_matrix = np.zeros(shape=(3,3))
         cv.Rodrigues(rvec_pos, rotation_matrix)
     thinned, closing = process_laser_image(laser_undist)
-    cv.imshow('close', closing)
-    cv.imshow('thin', thinned)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+    #cv.imshow('close', closing)
+    #cv.imshow('thin', thinned)
+    #cv.waitKey(0)
+    #cv.destroyAllWindows()
     return thinned, laser_undist, tvec
 
 #**************************************************************************************
@@ -179,7 +181,7 @@ def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, t
         for j in range(650,cols-650,1):
             if line[i][j] == 255:
                 cv.circle(laser_undis, (j,i), 5, [0,255,0], 2)
-                Zc = (tvec[0][0] * inv[2][0] +  tvec[1][0] * inv[2][1] + tvec[2][0] * inv[2][2])/(inv[2][0]/fx*(j-cx) + inv[2][1]/fy*(i-cy) + inv[2][2])
+                Zc = (tvec[0][0] * inv[2][0] +  tvec[1][0] * inv[2][1] + tvec[2][0] * inv[2][2])/((inv[2][0]/fx)*(j-cx) + (inv[2][1]/fy)*(i-cy) + (inv[2][2]))
                 C = np.array([Zc / fx * (j - cx), Zc / fy * (i - cy), Zc])
                 pointinlaserplane.append(C)  
 
@@ -204,12 +206,6 @@ def fit_plane_tls(points):
     fit = (A.T * A).I * A.T * b
     errors = b - A * fit
     residual = np.linalg.norm(errors)
-    print("solution:")
-    print("%f x + %f y + %f = z" % (fit[0], fit[1], fit[2]))
-    print("errors:")
-    print(errors)
-    print("residual:")
-    print(residual)
     return xs, ys, zs, fit
 
 #**************************************************************************************
@@ -235,6 +231,19 @@ def plot_plane(xs, ys, zs, fit):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     plt.show()
+
+def evaluate_models(points, best_plane_tls):
+    X = points[:, :2]
+    true_z = points[:, 2]
+    
+    
+    # Dự đoán z từ mô hình TLS
+    a_tls, b_tls, c_tls = best_plane_tls
+    pred_z_tls = a_tls * X[:, 0] + b_tls * X[:, 1] + c_tls
+    # Tính MSE cho từng mô hình
+    mse_tls = mean_squared_error(true_z, pred_z_tls)
+    
+    return mse_tls
 
 if __name__ == '__main__':
     '''
@@ -271,9 +280,15 @@ if __name__ == '__main__':
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
     print(pointinlaserplane_array)
+    start_time = time.time()
     x, y, z, fix_pl = fit_plane_tls(pointinlaserplane_array)
+    LLS_time = time.time() - start_time
     plot_plane(x, y, z, fix_pl)
-
+    a, b, c = float(fix_pl[0]), float(fix_pl[1]), float(fix_pl[2])
+    mse_tls = evaluate_models(pointinlaserplane_array, (a, b, c))
+    print(f"Phương trình mặt phẳng từ LLS tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
+    print(f"Thời gian thực thi với LLS tự triển khai: {LLS_time:.4f} giây")
+    print(f"MSE của TLS: {mse_tls:.4f}")
     
 
 
