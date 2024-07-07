@@ -74,10 +74,27 @@ def ransac_plane_fitting(points):
 
 np.random.seed(0)
 
+# Number of points
 num_points = 1000
+
+# Generate random 2D points
 X = np.random.rand(num_points, 2) * 100
-noise = np.random.randn(num_points) * 0.5
-Z = 3 * X[:, 0] + 2 * X[:, 1] + 1 + noise
+
+# Increase noise level
+noise = np.random.randn(num_points) * 5  # Increased from 0.5 to 5
+
+# Add nonlinear components
+nonlinear_component1 = 10 * np.sin(0.1 * X[:, 0]) * np.cos(0.1 * X[:, 1])
+nonlinear_component2 = 5 * np.log1p(X[:, 0])  # log1p(x) = log(1 + x)
+nonlinear_component3 = 2 * (X[:, 0]**2) * np.sin(0.1 * X[:, 1])
+nonlinear_component4 = 7 * np.exp(0.01 * X[:, 1])
+
+# Calculate Z values with increased noise and nonlinear components
+Z = (3 * X[:, 0] + 2 * X[:, 1] + 1 + noise +
+     nonlinear_component1 + nonlinear_component2 +
+     nonlinear_component3 + nonlinear_component4)
+
+# Combine X and Z into a single dataset
 points = np.column_stack((X, Z))
 
 

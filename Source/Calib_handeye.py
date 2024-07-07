@@ -105,10 +105,11 @@ def find_corners (width, height, camera_matrix, dist_matrix, objp, checker_path)
             cv.Rodrigues(rvec, rotation_matrix)
             R_target2cam.append(rotation_matrix)
             t_target2cam.append(tvec)
-            print(frame)
-            cv.imshow(frame, calib_img)
-            cv.waitKey(0)
-            cv.destroyAllWindows()
+
+            #print(frame)
+            #cv.imshow(frame, calib_img)
+            #cv.waitKey(0)
+            #cv.destroyAllWindows()
         else:
             print('fail to find corner')
     return R_target2cam, t_target2cam
@@ -124,6 +125,8 @@ def calibrate_handeye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam
     # Do not use Tsai due to poor accuracy
     R_cam2gripper, t_cam2gripper = cv.calibrateHandEye(R_gripper2base, t_gripper2base, \
                                                        R_target2cam, t_target2cam, method=cv.CALIB_HAND_EYE_DANIILIDIS)
+    print(R_cam2gripper)
+    print(t_cam2gripper)
     h_cam2gripper = combine_R_t(R_cam2gripper, t_cam2gripper)
     return h_cam2gripper
 
@@ -162,7 +165,7 @@ def calib_Handeye():
     object_point = create_objpoint(*checkerboard_size, square_size)
     cam_mat, dist_mat = load_camera_para(save_camera_params_path)
     R_target2camera, t_target2camera = find_corners (*checkerboard_size, cam_mat, dist_mat, object_point, checker_path)
-    h_camera2gripper = calibrate_handeye(R_gripper2base, t_gripper2base, R_target2camera, t_target2camera, save_calib_handeye)  
+    h_camera2gripper = calibrate_handeye(R_gripper2base, t_gripper2base, R_target2camera, t_target2camera)  
     save_h_cam2gripper(h_camera2gripper, save_calib_handeye) 
 
 if __name__ == '__main__':

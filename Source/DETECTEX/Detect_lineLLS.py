@@ -43,6 +43,16 @@ def create_objpoint():
     objp = objp * square_size  # Create real world coords. Use your metric.
     return objp
 
+#*********************************************************************************************************
+# Hàm combine_R_t: Kết hợp ma trận xoay và vector tịnh tiến để tạo thành một ma trận chuyển
+# agrs: Ma trận xoay (R), vector tịnh tiến (t)
+# return: Ma trận chuyển (h)
+#*********************************************************************************************************
+def combine_R_t(R, t):
+    r_4 = np.array([[0, 0, 0, 1]])
+    r_first_2_third = np.concatenate((R, t), axis = 1)
+    h = np.concatenate((r_first_2_third, r_4))
+    return h
 
 #**************************************************************************************
 # Hàm load_camera_params: Tải các tham số camera từ tệp lưu trữ
@@ -208,6 +218,45 @@ def fit_plane_tls(points):
     residual = np.linalg.norm(errors)
     return xs, ys, zs, fit
 
+#*********************************************************************************************************
+# Hàm find_corners: Tìm góc checkerboard từ đó xác định hệ số của ma trận thông số ngoại
+# args : Kích thước board (width, height), ma trận thông số nội (camera_matrix), ma trận hệ số nhiễu (dist_matrix)
+#        Hệ tọa độ các góc trong hệ tọa độ bàn cờ (objp), Đường dẫn thư mục chứa hình ảnh checkerboard (checker_path)
+# return: Ma trận thông số ngoại (R_target2cam, t_target2cam)
+#*********************************************************************************************************
+def find_corners (width, height, camera_matrix, dist_matrix, objp, checker_img_path):
+    '''
+    ////////////////////////////////////////////////
+    1. Khởi tạo các list lưu trữ các ma trận xoay và các vector tịnh tiến.
+    2. Thiết lập điều kiện dừng.
+    3. Lấy danh sách các đường dẫn hình ảnh.
+    4. Lặp qua từng ảnh.
+    5. Đọc và xử lí ảnh.
+    6. Tìm góc của board.
+        Nếu tìm thấy góc.
+            Ma trận xoay.
+            Vector tịnh tiến.
+    7. Trả về kết quả.
+    ////////////////////////////////////////////////
+    '''
+    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 3000, 0.00001)
+    find_chessboard_flags = cv.CALIB_CB_ADAPTIVE_THRESH
+    img = cv.imread(checker_img_path)
+    gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
+    ret, corners = cv.findChessboardCorners(gray, (width, height), None, find_chessboard_flags)
+    if ret:
+        corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+        calib_img = cv.drawChessboardCorners(img, (width, height), corners2, ret)
+        # Return the Rotation and the Translation VECTORS that transform a 
+        # 3D point expressed in the object coordinate frame to the camera coordinate frame
+        retval, rvec, tvec	= cv.solvePnP(objp, corners2, camera_matrix, dist_matrix, flags=cv.SOLVEPNP_ITERATIVE)
+        rotation_matrix = np.zeros(shape=(3, 3))
+        # Convert a rotation matrix to a rotation vector or vice versa
+        cv.Rodrigues(rvec, rotation_matrix)
+    else:
+        print('fail to find corner')
+    return rotation_matrix, tvec
+
 #**************************************************************************************
 # Hàm plot_plane: Vẽ đồ thị
 # args: Tọa độ các điểm trên mặt phẳng laser (xs, ys, zs), hệ số mặt phẳng fit (fit)
@@ -257,6 +306,8 @@ if __name__ == '__main__':
     7. Vẽ đồ thị.
     ///////////////////////////////////////////////////////////////////////////////////
     '''
+    checkerboard_size = pack.checkerboard_size
+    square_size = pack.square_size
     pointinlaserplanes = []
     Checkerboard_calib_laser_path = pp.Checkerboard_calib_laser_path
     Laser_position_output_path = pp.Laser_position_output_path
@@ -276,7 +327,9 @@ if __name__ == '__main__':
         thinned, laser_und, tvec = laser_Position(checker_img_path, laser_img_path, camera_mat, dist_mat,i)
         thinned_Image = Image.fromarray(thinned)
         thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
-        pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, camera_mat,laser_und,tvec)
+        object_point = create_objpoint()
+        rotation_mat, tvec2 = find_corners (*checkerboard_size, camera_mat, dist_mat, object_point, checker_img_path)
+        pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, rotation_mat ,laser_und, tvec2)
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
     print(pointinlaserplane_array)
