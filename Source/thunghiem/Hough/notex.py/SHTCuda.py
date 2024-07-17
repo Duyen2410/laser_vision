@@ -1,10 +1,34 @@
 import numpy as np
 import time
 from sklearn.metrics import mean_squared_error
+from numba import cuda, float32
+import math
+
+@cuda.jit
+def hough_transform_3d_kernel(points, accumulator, theta_res, phi_res, rho_res, rho_max):
+    # Tính toán chỉ số toàn cục của luồng hiện tại
+    theta_idx, phi_idx = cuda.grid(2)
+
+    theta_max = np.pi
+    phi_max = 2 * np.pi
+    rho_bins = accumulator.shape[2]
+    
+    if theta_idx < accumulator.shape[0] and phi_idx < accumulator.shape[1]:
+        theta = theta_idx * theta_res
+        phi = phi_idx * phi_res
+
+        for i in range(points.shape[0]):
+            x, y, z = points[i]
+            a = math.sin(theta) * math.cos(phi)
+            b = math.sin(theta) * math.sin(phi)
+            c = math.cos(theta)
+            rho = a * x + b * y + c * z
+            rho_idx = int((rho + rho_max) / rho_res)
+            if 0 <= rho_idx < rho_bins:
+                cuda.atomic.add(accumulator, (theta_idx, phi_idx, rho_idx), 1)
 
 def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
-    points = np.asarray(points)
-    
+    points = np.asarray(points, dtype=np.float32)
 
     # Define the ranges for theta, phi, and d
     theta_max = np.pi
@@ -12,21 +36,20 @@ def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
     rho_max = np.linalg.norm(points, axis=1).max()
     theta_bins = int(theta_max / theta_res)
     phi_bins = int(phi_max / phi_res)
-    rho_bins = int((2*rho_max) / rho_res)
-    accumulator = np.zeros((theta_bins, phi_bins, rho_bins))
+    rho_bins = int((2 * rho_max) / rho_res)
+    
+    accumulator = np.zeros((theta_bins, phi_bins, rho_bins), dtype=np.int32)
+    d_accumulator = cuda.to_device(accumulator)
+    d_points = cuda.to_device(points)
 
+    threadsperblock = (16, 16)
+    blockspergrid_x = math.ceil(theta_bins / threadsperblock[0])
+    blockspergrid_y = math.ceil(phi_bins / threadsperblock[1])
+    blockspergrid = (blockspergrid_x, blockspergrid_y)
 
-    for x, y, z in points:
-        for theta_idx in range(theta_bins):
-            theta = theta_idx * theta_res
-            for phi_idx in range(phi_bins):
-                phi = phi_idx * phi_res
-                a = np.sin(theta) * np.cos(phi)
-                b = np.sin(theta) * np.sin(phi)
-                c = np.cos(theta)
-                rho = a * x + b * y + c * z
-                rho_idx = int((rho + rho_max)/theta_res)
-                accumulator[theta_idx, phi_idx, rho_idx] += 1
+    hough_transform_3d_kernel[blockspergrid, threadsperblock](d_points, d_accumulator, theta_res, phi_res, rho_res, rho_max)
+
+    accumulator = d_accumulator.copy_to_host()
 
     idx = np.unravel_index(np.argmax(accumulator), accumulator.shape)
     theta_idx_f, phi_idx_f, rho_idx_f = idx

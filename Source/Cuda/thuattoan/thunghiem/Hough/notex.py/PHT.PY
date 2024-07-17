@@ -1,22 +1,23 @@
 import numpy as np
 import time
 from sklearn.metrics import mean_squared_error
-
-def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
+import random
+def p_hough_transform_3d(points, theta_res=0.05, phi_res=0.05, rho_res=0.05, points_num = 600, threshold = 10):
     points = np.asarray(points)
-    
-
+    p_m = random.sample(list(points), points_num)
     # Define the ranges for theta, phi, and d
     theta_max = np.pi
     phi_max = 2 * np.pi
-    rho_max = np.linalg.norm(points, axis=1).max()
+    rho_max = np.linalg.norm(p_m, axis=1).max()
+    
+    # Create the accumulator array
     theta_bins = int(theta_max / theta_res)
     phi_bins = int(phi_max / phi_res)
     rho_bins = int((2*rho_max) / rho_res)
     accumulator = np.zeros((theta_bins, phi_bins, rho_bins))
 
 
-    for x, y, z in points:
+    for x, y, z in p_m:
         for theta_idx in range(theta_bins):
             theta = theta_idx * theta_res
             for phi_idx in range(phi_bins):
@@ -26,7 +27,10 @@ def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
                 c = np.cos(theta)
                 rho = a * x + b * y + c * z
                 rho_idx = int((rho + rho_max)/theta_res)
-                accumulator[theta_idx, phi_idx, rho_idx] += 1
+                if 0 <= rho_idx < rho_bins:
+                    accumulator[theta_idx, phi_idx, rho_idx] += 1
+
+    #accumulator[accumulator < threshold] = 0
 
     idx = np.unravel_index(np.argmax(accumulator), accumulator.shape)
     theta_idx_f, phi_idx_f, rho_idx_f = idx
@@ -50,7 +54,7 @@ points = np.column_stack((X, Z))
 
 # Phương pháp Hough transform
 start_time = time.time()
-best_fit = hough_transform_3d(points)
+best_fit = p_hough_transform_3d(points)
 hough_time = time.time() - start_time
 
 a_h, b_h, c_h, d_h = float(best_fit[0]), float(best_fit[1]), float(best_fit[2]), float(best_fit[3])

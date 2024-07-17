@@ -4,6 +4,7 @@ import glob
 import os
 import para_of_checkerboard as pack
 import pro_paths as pp
+import time
 
 #*********************************************************************************************************
 # Hàm load_images: Tải danh sách đường dẫn hình ảnh từ một thư mục cụ thể
@@ -59,8 +60,8 @@ def extract_corners(width, height, image_paths, objp):
 
     for frame in image_paths:
         img = cv.imread(frame)
-        print(type(img))
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
         # Find the chess board corners
         ret, corners = cv.findChessboardCorners(gray, (width, height), None, find_chessboard_flags)
 
@@ -70,11 +71,11 @@ def extract_corners(width, height, image_paths, objp):
             corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             imgpoints.append(corners2)
             # Draw and display the corners
-            calib_img = cv.drawChessboardCorners(img, (width, height), corners2, ret)
-            print(frame)
-            cv.imshow(frame, calib_img)
-            cv.waitKey(0)
-            cv.destroyAllWindows()
+            #calib_img = cv.drawChessboardCorners(img, (width, height), corners2, ret)
+            #print(frame)
+            #cv.imshow(frame, calib_img)
+            #cv.waitKey(0)
+            #cv.destroyAllWindows()
         else:
             print("CHECKERBOARD NOT DETECTED!\t---> IMAGE PAIR: ", frame)
     return objpoints, imgpoints, gray
@@ -127,6 +128,7 @@ def calibrate():
     save_calibration_params(save_camera_params_path, instrinsic, distortion)
 
 if __name__ == '__main__':
+
     calibrate()
 
 

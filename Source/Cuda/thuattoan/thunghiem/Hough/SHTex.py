@@ -5,11 +5,16 @@ from sklearn.metrics import mean_squared_error
 def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
     points = np.asarray(points)
     
+    xs = points[:,0]
+    ys = points[:,1]
+    zs = points[:,2]
 
     # Define the ranges for theta, phi, and d
     theta_max = np.pi
     phi_max = 2 * np.pi
     rho_max = np.linalg.norm(points, axis=1).max()
+    
+    # Create the accumulator array
     theta_bins = int(theta_max / theta_res)
     phi_bins = int(phi_max / phi_res)
     rho_bins = int((2*rho_max) / rho_res)
@@ -39,46 +44,5 @@ def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
     c = np.cos(best_theta)
 
     best_fit_plane = (a, b, c, -best_rho)
-    return best_fit_plane
+    return xs, ys, zs, best_fit_plane
 
-np.random.seed(0)
-num_points = 1000
-X = np.random.rand(num_points, 2) * 100
-noise = np.random.randn(num_points) * 0.5
-Z = 3 * X[:, 0] + 2 * X[:, 1] + 1 + noise
-points = np.column_stack((X, Z))
-
-# Phương pháp Hough transform
-start_time = time.time()
-best_fit = hough_transform_3d(points)
-hough_time = time.time() - start_time
-
-a_h, b_h, c_h, d_h = float(best_fit[0]), float(best_fit[1]), float(best_fit[2]), float(best_fit[3])
-
-
-def evaluate_models(points, best_plane_hough):
-    X = points[:, :2]
-    true_z = points[:, 2]
-    
-    
-    # Dự đoán z từ mô hình Hough
-    a_h, b_h, c_h, d_h = best_plane_hough
-    pred_z_hough = -(a_h * X[:, 0] + b_h * X[:, 1] + d_h) / c_h
-    
-    # Tính MSE cho từng mô hình
-
-    mse_hough = mean_squared_error(true_z, pred_z_hough)
-    
-    return mse_hough
-
-# Đánh giá các mô hình
-mse_hough = evaluate_models(points, best_fit)
-
-# In kết quả so sánh
-print("\n=== So sánh các phương pháp ===")
-
-print(f"Phương trình mặt phẳng từ Hough: z = {-a_h/c_h:.4f} * x + {-b_h/c_h:.4f} * y + {-d_h/c_h:.4f}")
-
-print(f"Thời gian thực thi với Hough: {hough_time:.4f} giây")
-
-print(f"MSE của Hough transform: {mse_hough:.4f}")

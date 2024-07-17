@@ -8,11 +8,14 @@ import os
 import scipy
 import para_of_checkerboard as pack
 import pro_paths as pp
-import sys
-import numba
 import time
-sys.path.insert(0, 'C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Source/thunghiem/HOUGH')
-import RHTBex as HT
+import sys
+import numpy as np
+from numba import cuda, float32, njit
+sys.path.insert(0, '/content/gdrive/MyDrive/COLAB/THINKALPHA/233/NCKH/laser-vision/Source/thunghiem/RANSAC')
+import ransac3ex as ransac
+
+
 
 
 #**************************************************************************************
@@ -20,6 +23,7 @@ import RHTBex as HT
 # args: đường dẫn tới thư mục chứa hình ảnh (image_dir), tiền tố (image_prefix), định dạng (image_formax)
 # return: đường dẫn tới danh sách hình ảnh
 #**************************************************************************************
+@njit
 def load_images(image_dir, image_prefix, image_format):
     image_paths = glob.glob(os.path.join(image_dir,f"{image_prefix}*.{image_format}"))
     return image_paths
@@ -30,6 +34,7 @@ def load_images(image_dir, image_prefix, image_format):
 # args: Kích thước bàn cờ (width, height), kích thước từng ô cờ (square_size)
 # return: Tạo độ các điểm trong không gian thực
 #**************************************************************************************
+@njit
 def create_objpoint():
     '''
     ///////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +57,7 @@ def create_objpoint():
 # args: Đường dẫn tới tệp chứa các tham số camera được lưu trữ (save_camera_params_path_arg)
 # return: Các tham số camera từ tệp-ma trận thông số nội, ma trận hệ số nhiễu (camera_matrix, dist_matrix)
 #**************************************************************************************
+@njit
 def load_camera_params(save_camera_params_path_arg):
     cv_file = cv.FileStorage(save_camera_params_path_arg, cv.FILE_STORAGE_READ)
     camera_matrix = cv_file.getNode("instrinsic").mat()
@@ -65,12 +71,13 @@ def load_camera_params(save_camera_params_path_arg):
 # args: Đường dẫn tới tệp hình ảnh cần xử lí
 # return: Ảnh xám (Img)
 #**************************************************************************************
+@njit
 def processing_raw_image(Image_Path_arg):
     Imgraw = cv.imread(Image_Path_arg)
     Img = cv.cvtColor(Imgraw, cv.COLOR_BGR2GRAY)     
     return Img
 
-
+@njit
 #**************************************************************************************
 # Hàm load_images: Hiệu chỉnh hình ảnh bị nhiễu bằng cách sử dụng sử dụng các tham số camera
 # args: Kích thước ảnh (rows_arg, cols_arg), Hình ảnh bị nhiễu (Img_arg), Ma trận thông số nội (camera_matrix_arg), Ma trận hệ số nhiễu (dist_matrix_arg) 
@@ -81,22 +88,12 @@ def undistort_images(rows_arg, cols_arg, Img_arg, camera_matrix_arg, dist_matrix
     Image_undis = cv.undistort(Img_arg, camera_matrix_arg, dist_matrix_arg, None, newcameramtx)
     return Image_undis
 
-#*********************************************************************************************************
-# Hàm combine_R_t: Kết hợp ma trận xoay và vector tịnh tiến để tạo thành một ma trận chuyển
-# agrs: Ma trận xoay (R), vector tịnh tiến (t)
-# return: Ma trận chuyển (h)
-#*********************************************************************************************************
-def combine_R_t(R, t):
-    r_4 = np.array([[0, 0, 0, 1]])
-    r_first_2_third = np.concatenate((R, t), axis = 1)
-    h = np.concatenate((r_first_2_third, r_4))
-    return h
 #**************************************************************************************
 # Hàm process_laser_image: Xử lí ảnh 
 # args: Hình ảnh đã loại hệ số nhiễu (laser_undis_arg)
 # return: Ảnh đã xử lí closing(clos), ảnh đã xử lí thinned(thin)
 #**************************************************************************************
-
+@njit
 def process_laser_image(laser_undis_arg):
     '''
     ///////////////////////////////////////////////////////////////////////////////////
@@ -120,20 +117,38 @@ def process_laser_image(laser_undis_arg):
 # args: Hình ảnh cần xử lí (img).
 # return: Tọa độ tâm đường laser (center)
 #**************************************************************************************
-def LaserCenter(img):
-        center = np.zeros_like(img)
-        # find the center point
-        rows, cols = img.shape
-        for x in range(cols):
+
+
+@cuda.jit
+def find_center(img, center):
+    y, x = cuda.grid(2)
+    rows, cols = img.shape
+    if x < cols and y < rows:
+        if img[y, x] == 255:
             sum1 = 0.0
             sum2 = 0.0
-            roi = np.where(img[:,x] == 255)
-            if roi[0].size != 0:
-                for y in roi[0]:
-                    sum1 += y * img[y][x]
-                    sum2 += img[y][x]
-                center[int(sum1/sum2)][x] = 255
-        return center
+            for i in range(rows):
+                if img[i, x] == 255:
+                    sum1 += i * img[i, x]
+                    sum2 += img[i, x]
+            if sum2 != 0:
+                center[int(sum1 / sum2), x] = 255
+
+def LaserCenter(img):
+    rows, cols = img.shape
+    center = np.zeros_like(img)
+
+    # Configure the blocks
+    threads_per_block = (16, 16)
+    blocks_per_grid_x = (cols + threads_per_block[0] - 1) // threads_per_block[0]
+    blocks_per_grid_y = (rows + threads_per_block[1] - 1) // threads_per_block[1]
+    blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+
+    # Launch the kernel
+    find_center[blocks_per_grid, threads_per_block](img, center)
+
+    return center
+
 
 
 #**************************************************************************************
@@ -185,47 +200,42 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
 # Hình ảnh đã xử loại nhiễu (laser_undis), vector tịnh tiến (tvec)
 # return: Danh sách điểm trên mặt phẳng laser (pointinlaserplane)
 #**************************************************************************************
+
+@cuda.jit
+def find_laser_points(thinned, fx, fy, cx, cy, inv, tvec, laser_undis, pointinlaserplane):
+    i, j = cuda.grid(2)
+    rows, cols = thinned.shape
+    if 400 <= i < rows - 200 and 650 <= j < cols - 650:
+        if thinned[i, j] == 255:
+            Zc = (tvec[0][0] * inv[2, 0] + tvec[1][0] * inv[2, 1] + tvec[2][0] * inv[2, 2]) / ((inv[2, 0] / fx) * (j - cx) + (inv[2, 1] / fy) * (i - cy) + inv[2, 2])
+            Cx = Zc / fx * (j - cx)
+            Cy = Zc / fy * (i - cy)
+            pointinlaserplane[i, j, 0] = Cx
+            pointinlaserplane[i, j, 1] = Cy
+            pointinlaserplane[i, j, 2] = Zc
+            cuda.atomic.add(pointinlaserplane, (i, j, 3), 1)
+
 def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, tvec):
-    pointinlaserplane = []
-    rows, cols = laser_undis.shape
-    line = LaserCenter(thinned)     
+    rows, cols = thinned.shape
+    line = LaserCenter(thinned)
     inv = np.linalg.inv(rotation_matrix)
-    for i in range(400,rows-200,1):
-        for j in range(650,cols-650,1):
-            if line[i][j] == 255:
-                cv.circle(laser_undis, (j,i), 5, [0,255,0], 2)
-                Zc = (tvec[0][0] * inv[2][0] +  tvec[1][0] * inv[2][1] + tvec[2][0] * inv[2][2])/(inv[2][0]/fx*(j-cx) + inv[2][1]/fy*(i-cy) + inv[2][2])
-                C = np.array([Zc / fx * (j - cx), Zc / fy * (i - cy), Zc])
-                pointinlaserplane.append(C)  
+    pointinlaserplane = np.zeros((rows, cols, 4), dtype=np.float32)
 
-    return pointinlaserplane
+    # Configure the blocks
+    threads_per_block = (16, 16)
+    blocks_per_grid_x = (rows + threads_per_block[0] - 1) // threads_per_block[0]
+    blocks_per_grid_y = (cols + threads_per_block[1] - 1) // threads_per_block[1]
+    blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
 
-#**************************************************************************************
-# Hàm load_images: Tải danh sách đường dẫn hình ảnh từ một thư mục
-# args: đường dẫn tới thư mục chứa hình ảnh (image_dir), tiền tố (image_prefix), định dạng (image_formax)
-# return: đường dẫn tới danh sách hình ảnh
-#**************************************************************************************
-def fit_plane_tls(points):
-    xs = points[:,0]
-    ys = points[:,1]
-    zs = points[:,2]
-    tmp_A = []
-    tmp_b = []
-    for i in range(len(xs)):
-        tmp_A.append([xs[i], ys[i], 1])
-        tmp_b.append(zs[i])
-    b = np.matrix(tmp_b).T
-    A = np.matrix(tmp_A)
-    fit = (A.T * A).I * A.T * b
-    errors = b - A * fit
-    residual = np.linalg.norm(errors)
-    print("solution:")
-    print("%f x + %f y + %f = z" % (fit[0], fit[1], fit[2]))
-    print("errors:")
-    print(errors)
-    print("residual:")
-    print(residual)
-    return xs, ys, zs, fit
+    # Launch the kernel
+    find_laser_points[blocks_per_grid, threads_per_block](line, fx, fy, cx, cy, inv, tvec, laser_undis, pointinlaserplane)
+
+    # Extract valid points
+    valid_points = pointinlaserplane[:, :, 3] > 0
+    points = pointinlaserplane[valid_points][:, :3]
+
+    return points
+
 
 #**************************************************************************************
 # Hàm plot_plane: Vẽ đồ thị
@@ -251,7 +261,6 @@ def plot_plane(xs, ys, zs, fit):
     ax.set_zlabel('z')
     plt.show()
 
-
 #*********************************************************************************************************
 # Hàm find_corners: Tìm góc checkerboard từ đó xác định hệ số của ma trận thông số ngoại
 # args : Kích thước board (width, height), ma trận thông số nội (camera_matrix), ma trận hệ số nhiễu (dist_matrix)
@@ -273,8 +282,6 @@ def find_corners (width, height, camera_matrix, dist_matrix, objp, checker_img_p
     7. Trả về kết quả.
     ////////////////////////////////////////////////
     '''
-    R_target2cam = []
-    t_target2cam = []
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 3000, 0.00001)
     find_chessboard_flags = cv.CALIB_CB_ADAPTIVE_THRESH
     img = cv.imread(checker_img_path)
@@ -301,6 +308,7 @@ if __name__ == '__main__':
     3. Tách line.
     4. Lưu ảnh vào tệp.
     5. Tìm tập tọa độ điểm trên mặt phẳng laser.
+
     6. Tìm mặt phẳng laser.
     7. Vẽ đồ thị.
     ///////////////////////////////////////////////////////////////////////////////////
@@ -323,29 +331,23 @@ if __name__ == '__main__':
     cx = camera_mat[0][2]
     cy = camera_mat[1][2]
     print('read camera parameters success')
+    object_point = create_objpoint()
     for i, checker_img_path, laser_img_path in zip(range(16), checkerPaths, laserPaths):
         thinned, laser_und, tvec = laser_Position(checker_img_path, laser_img_path, camera_mat, dist_mat,i)
         thinned_Image = Image.fromarray(thinned)
         thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
-        object_point = create_objpoint()
         rotation_mat, tvec2 = find_corners (*checkerboard_size, camera_mat, dist_mat, object_point, checker_img_path)
         pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, rotation_mat ,laser_und, tvec2)
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
     print(pointinlaserplane_array)
-    x, y, z, fix_pl = HT.detect_best_plane(pointinlaserplane_array, k_max_in = 5, n_in = 0.6, theta_res=0.05, phi_res=0.05, rho_res=0.05)
-    hough_time = time.time() - start_time
-    plot_plane(x, y, z, fix_pl)
-    a, b, c, d  = fix_pl
-    # Đánh giá các mô hình
-    mse_hough = HT.evaluate_models(pointinlaserplane_array, fix_pl)
-    print(f"Phương trình mặt phẳng từ HOUGH tự triển khai: z = {a/c:.4f} * x + {b/c:.4f} * y + {d/c:.4f}")
-    print(f"Thời gian Calib_laser bằng HT: {hough_time:.4f} giây")
-    print(f"MSE của Hough transform: {mse_hough:.4f}")
-    
-
-
-
-        
-
-    
+    x, y, z, bestFit, _, max_inliers = ransac.ransac_plane_fitting(pointinlaserplane_array)
+    ransac_time = time.time() - start_time
+    plot_plane(x, y, z, bestFit)
+    a, b, c = bestFit
+    mse_ransac, r_adj_sq, mae_ransac = ransac.evaluate_models(pointinlaserplane_array, bestFit)
+    print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
+    print(f"Thời gian Calib_laser với RANSAC: {ransac_time:.4f} giây")
+    print(f"MSE của RANSAC tự triển khai: {mse_ransac:.4f}")
+    print(f"R^2 : {r_adj_sq:.4f}")
+    print(f"MAE: {mae_ransac:.4f}")
