@@ -78,20 +78,24 @@ def detect_best_plane(D, k_max_in = 100, n_in = 0.1, theta_res=0.05, phi_res=0.0
 
 
 
-def evaluate_models(points, best_plane_hough):
+def evaluate_models(points, best_plane_ransac):
     X = points[:, :2]
     true_z = points[:, 2]
     
-    
-    # Dự đoán z từ mô hình Hough
-    a_h, b_h, c_h, d_h = best_plane_hough
-    pred_z_hough = (a_h * X[:, 0] + b_h * X[:, 1] + d_h)/c_h
-    
-    # Tính MSE cho từng mô hình
+    # Dự đoán z từ mô hình RANSAC
+    a_r, b_r, c_r, d_r = best_plane_ransac
+    pred_z_ransac = (a_r * X[:, 0] + b_r * X[:, 1] + d_r)/c_r
+    mse_ransac = mean_squared_error(true_z, pred_z_ransac)
+    sse_ransac = np.sum((true_z - pred_z_ransac) ** 2)
+    sst = np.sum((true_z - np.mean(true_z)) ** 2)
+    # Tính R^2
+    r2_ransac = 1 - (sse_ransac / sst)
+    n = len(points)
+    p = 2  # Số biến độc lập
+    r2_adj_ransac = 1 - ((1 - r2_ransac) * (n - 1)) / (n - p - 1)
+    mae = np.mean(np.abs(true_z - pred_z_ransac))
 
-    mse_hough = mean_squared_error(true_z, pred_z_hough)
-    
-    return mse_hough
+    return mse_ransac, r2_adj_ransac, mae
 
 
 

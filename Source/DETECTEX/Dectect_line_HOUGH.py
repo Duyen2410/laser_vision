@@ -245,7 +245,7 @@ def plot_plane(xs, ys, zs, fit):
     for r in range(X.shape[0]):
         for c in range(X.shape[1]):
             Z[r,c] = (fit[0] * X[r,c] + fit[1] * Y[r,c] + fit[2])
-    ax.plot_wireframe(X,Y,Z, color='k')
+    #ax.plot_wireframe(X,Y,Z, color='k')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     7. Vẽ đồ thị.
     ///////////////////////////////////////////////////////////////////////////////////
     '''
-    start_time = time.time()
+    
     checkerboard_size = pack.checkerboard_size
     square_size = pack.square_size
     pointinlaserplanes = []
@@ -333,15 +333,18 @@ if __name__ == '__main__':
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
     print(pointinlaserplane_array)
+    start_time = time.time()
     x, y, z, fix_pl = HT.detect_best_plane(pointinlaserplane_array, k_max_in = 5, n_in = 0.6, theta_res=0.05, phi_res=0.05, rho_res=0.05)
     hough_time = time.time() - start_time
     plot_plane(x, y, z, fix_pl)
     a, b, c, d  = fix_pl
     # Đánh giá các mô hình
-    mse_hough = HT.evaluate_models(pointinlaserplane_array, fix_pl)
-    print(f"Phương trình mặt phẳng từ HOUGH tự triển khai: z = {a/c:.4f} * x + {b/c:.4f} * y + {d/c:.4f}")
-    print(f"Thời gian Calib_laser bằng HT: {hough_time:.4f} giây")
-    print(f"MSE của Hough transform: {mse_hough:.4f}")
+    mse_hough, r_adj_sq, mae_hough = HT.evaluate_models(pointinlaserplane_array, fix_pl)
+    print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
+    print(f"Thời gian Calib_laser với RANSAC: {hough_time:.4f} giây")
+    print(f"MSE của RANSAC tự triển khai: {mse_hough:.4f}")
+    print(f"R^2 : {r_adj_sq:.4f}")
+    print(f"MAE: {mae_hough:.4f}")
     
 
 

@@ -82,7 +82,7 @@ points = np.column_stack((X, Z))
 
 start_time = time.time()
 best_plane, best_error = ransac_plane_fitting(points)
-custom_time = time.time() - start_time
+ransac_time = time.time() - start_time
 
 a, b, c = best_plane
 
@@ -94,15 +94,23 @@ def evaluate_models(points, best_plane_ransac):
     
     # Dự đoán z từ mô hình RANSAC
     a_r, b_r, c_r = best_plane_ransac
-    pred_z_ransac = (a_r * X[:, 0] + b_r * X[:, 1] + c_r)
+    pred_z_ransac = a_r * X[:, 0] + b_r * X[:, 1] + c_r
     mse_ransac = mean_squared_error(true_z, pred_z_ransac)
-    return mse_ransac
+    sse_ransac = np.sum((true_z - pred_z_ransac) ** 2)
+    sst = np.sum((true_z - np.mean(true_z)) ** 2)
+    # Tính R^2
+    r2_ransac = 1 - (sse_ransac / sst)
+    n = len(points)
+    p = 2  # Số biến độc lập
+    r2_adj_ransac = 1 - ((1 - r2_ransac) * (n - 1)) / (n - p - 1)
+    mae = np.mean(np.abs(true_z - pred_z_ransac))
 
-mse_ransac = evaluate_models(points, best_plane)
+    return mse_ransac, r2_adj_ransac, mae
 
+mse_ransac, r_adj_sq, mae_ransac = evaluate_models(points, best_plane)
 print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
-
-print(f"Thời gian thực thi với RANSAC tự triển khai: {custom_time:.4f} giây")
-
+print(f"Thời gian Calib_laser với RANSAC: {ransac_time:.4f} giây")
 print(f"MSE của RANSAC tự triển khai: {mse_ransac:.4f}")
+print(f"R^2 : {r_adj_sq:.4f}")
+print(f"MAE: {mae_ransac:.4f}")
 

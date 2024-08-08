@@ -112,19 +112,19 @@ def process_laser_image(laser_undis_arg):
 # return: Tọa độ tâm đường laser (center)
 #**************************************************************************************
 def LaserCenter(img):
-        center = np.zeros_like(img)
-        # find the center point
-        rows, cols = img.shape
-        for x in range(cols):
-            sum1 = 0.0
-            sum2 = 0.0
-            roi = np.where(img[:,x] == 255)
-            if roi[0].size != 0:
-                for y in roi[0]:
-                    sum1 += y * img[y][x]
-                    sum2 += img[y][x]
-                center[int(sum1/sum2)][x] = 255
-        return center
+    center = np.zeros_like(img)
+    # find the center point
+    rows, cols = img.shape
+    for x in range(cols):
+        sum1 = 0.0
+        sum2 = 0.0
+        roi = np.where(img[:,x] == 255)
+        if roi[0].size != 0:
+            for y in roi[0]:
+                sum1 += y * img[y][x]
+                sum2 += img[y][x]
+            center[int(sum1/sum2)][x] = 255
+    return center
 
 
 #**************************************************************************************
@@ -146,7 +146,7 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
     ///////////////////////////////////////////////////////////////////////////////////
     '''
     size_of_checker = (4, 5)
-    print(i+1)
+    # print(i+1)
     # chess_image = processing_raw_image(checker_image_Path)
     laser_image = processing_raw_image(laser_image_Path)
     chess_image = processing_raw_image(checker_image_Path)
@@ -156,7 +156,7 @@ def laser_Position(checker_image_Path, laser_image_Path, camera_mat, dist_mat, i
     ret, corners = cv.findChessboardCorners(chess_undist, size_of_checker, None, cv.CALIB_CB_ADAPTIVE_THRESH)
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 3000, 0.00001)
     corners_pos1 = cv.cornerSubPix(chess_undist,corners,(11,11),(-1,-1), criteria)
-    chess_undis = cv.drawChessboardCorners(chess_undist, size_of_checker, corners_pos1,ret)
+    # chess_undis = cv.drawChessboardCorners(chess_undist, size_of_checker, corners_pos1,ret)
     if ret:
         objp = create_objpoint()
         retval, rvec_pos, tvec = cv.solvePnP(objp,corners_pos1, camera_mat, dist_mat)
@@ -191,32 +191,6 @@ def extract_laser_point(thinned, fx, fy, cx, cy, rotation_matrix, laser_undis, t
 
     return pointinlaserplane
 
-#**************************************************************************************
-# Hàm load_images: Tải danh sách đường dẫn hình ảnh từ một thư mục
-# args: đường dẫn tới thư mục chứa hình ảnh (image_dir), tiền tố (image_prefix), định dạng (image_formax)
-# return: đường dẫn tới danh sách hình ảnh
-#**************************************************************************************
-def fit_plane_tls(points):
-    xs = points[:,0]
-    ys = points[:,1]
-    zs = points[:,2]
-    tmp_A = []
-    tmp_b = []
-    for i in range(len(xs)):
-        tmp_A.append([xs[i], ys[i], 1])
-        tmp_b.append(zs[i])
-    b = np.matrix(tmp_b).T
-    A = np.matrix(tmp_A)
-    fit = (A.T * A).I * A.T * b
-    errors = b - A * fit
-    residual = np.linalg.norm(errors)
-    print("solution:")
-    print("%f x + %f y + %f = z" % (fit[0], fit[1], fit[2]))
-    print("errors:")
-    print(errors)
-    print("residual:")
-    print(residual)
-    return xs, ys, zs, fit
 
 #**************************************************************************************
 # Hàm plot_plane: Vẽ đồ thị
@@ -270,7 +244,7 @@ def find_corners (width, height, camera_matrix, dist_matrix, objp, checker_img_p
     ret, corners = cv.findChessboardCorners(gray, (width, height), None, find_chessboard_flags)
     if ret:
         corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
-        calib_img = cv.drawChessboardCorners(img, (width, height), corners2, ret)
+        # calib_img = cv.drawChessboardCorners(img, (width, height), corners2, ret)
         # Return the Rotation and the Translation VECTORS that transform a 
         # 3D point expressed in the object coordinate frame to the camera coordinate frame
         retval, rvec, tvec	= cv.solvePnP(objp, corners2, camera_matrix, dist_matrix, flags=cv.SOLVEPNP_ITERATIVE)
@@ -294,7 +268,7 @@ if __name__ == '__main__':
     7. Vẽ đồ thị.
     ///////////////////////////////////////////////////////////////////////////////////
     '''
-    start_time = time.time()
+    
     checkerboard_size = pack.checkerboard_size
     square_size = pack.square_size
     pointinlaserplanes = []
@@ -311,22 +285,24 @@ if __name__ == '__main__':
     fy = camera_mat[1][1]
     cx = camera_mat[0][2]
     cy = camera_mat[1][2]
+    object_point = create_objpoint()
     print('read camera parameters success')
     for i, checker_img_path, laser_img_path in zip(range(16), checkerPaths, laserPaths):
+        
         thinned, laser_und, tvec = laser_Position(checker_img_path, laser_img_path, camera_mat, dist_mat,i)
         thinned_Image = Image.fromarray(thinned)
-        thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
-        object_point = create_objpoint()
+        #thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
         rotation_mat, tvec2 = find_corners (*checkerboard_size, camera_mat, dist_mat, object_point, checker_img_path)
         pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, rotation_mat ,laser_und, tvec2)
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
-    print(pointinlaserplane_array)
+        
+    start_time = time.time()   
     x, y, z, bestFit, _, max_inliers = ransac.ransac_plane_fitting(pointinlaserplane_array)
+    ransac_time = time.time() - start_time
     plot_plane(x, y, z, bestFit)
     a, b, c = bestFit
     mse_ransac, r_adj_sq, mae_ransac = ransac.evaluate_models(pointinlaserplane_array, bestFit)
-    ransac_time = time.time() - start_time
     print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
     print(f"Thời gian Calib_laser bằng Ransac: {ransac_time:.4f} giây")
     print(f"MSE của RANSAC tự triển khai: {mse_ransac:.4f}")

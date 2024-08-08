@@ -313,7 +313,6 @@ if __name__ == '__main__':
     7. Vẽ đồ thị.
     ///////////////////////////////////////////////////////////////////////////////////
     '''
-    start_time = time.time()
     checkerboard_size = pack.checkerboard_size
     square_size = pack.square_size
     pointinlaserplanes = []
@@ -332,6 +331,7 @@ if __name__ == '__main__':
     cy = camera_mat[1][2]
     print('read camera parameters success')
     for i, checker_img_path, laser_img_path in zip(range(16), checkerPaths, laserPaths):
+        start_time = time.time()
         thinned, laser_und, tvec = laser_Position(checker_img_path, laser_img_path, camera_mat, dist_mat,i)
         thinned_Image = Image.fromarray(thinned)
         thinned_Image.save(Laser_position_output_path + f"thinned_{i+1}.png")
@@ -340,9 +340,8 @@ if __name__ == '__main__':
         pointlaser = extract_laser_point(thinned, fx, fy, cx, cy, rotation_mat ,laser_und, tvec2)
         pointinlaserplanes.extend(pointlaser)
         pointinlaserplane_array = np.array(pointinlaserplanes)
-    print(pointinlaserplane_array)
+        ransac_time = time.time() - start_time
     x, y, z, bestFit, _, max_inliers = ransac.ransac_plane_fitting(pointinlaserplane_array)
-    ransac_time = time.time() - start_time
     plot_plane(x, y, z, bestFit)
     a, b, c = bestFit
     mse_ransac, r_adj_sq, mae_ransac = ransac.evaluate_models(pointinlaserplane_array, bestFit)

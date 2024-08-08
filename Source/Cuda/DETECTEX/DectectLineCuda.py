@@ -207,7 +207,9 @@ def find_laser_points(thinned, fx, fy, cx, cy, inv, tvec, laser_undis, pointinla
     rows, cols = thinned.shape
     if 400 <= i < rows - 200 and 650 <= j < cols - 650:
         if thinned[i, j] == 255:
-            Zc = (tvec[0][0] * inv[2, 0] + tvec[1][0] * inv[2, 1] + tvec[2][0] * inv[2, 2]) / ((inv[2, 0] / fx) * (j - cx) + (inv[2, 1] / fy) * (i - cy) + inv[2, 2])
+            Zc = (tvec[0][0] * inv[2, 0] + tvec[1][0] * inv[2, 1] + tvec[2][0] 
+                  * inv[2, 2]) / ((inv[2, 0] / fx) * (j - cx) + 
+                                  (inv[2, 1] / fy) * (i - cy) + inv[2, 2])
             Cx = Zc / fx * (j - cx)
             Cy = Zc / fy * (i - cy)
             pointinlaserplane[i, j, 0] = Cx

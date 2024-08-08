@@ -46,3 +46,24 @@ def hough_transform_3d(points, theta_res=0.1, phi_res=0.1, rho_res=0.1):
     best_fit_plane = (a, b, c, -best_rho)
     return xs, ys, zs, best_fit_plane
 
+def evaluate_models(points, best_plane_ransac):
+    X = points[:, :2]
+    true_z = points[:, 2]
+    
+    # Dự đoán z từ mô hình RANSAC
+    a_r, b_r, c_r, d_r = best_plane_ransac
+    pred_z_ransac = -(a_r * X[:, 0] + b_r * X[:, 1] + d_r)/c_r
+    mse_ransac = mean_squared_error(true_z, pred_z_ransac)
+    sse_ransac = np.sum((true_z - pred_z_ransac) ** 2)
+    sst = np.sum((true_z - np.mean(true_z)) ** 2)
+    # Tính R^2
+    r2_ransac = 1 - (sse_ransac / sst)
+    n = len(points)
+    p = 2  # Số biến độc lập
+    r2_adj_ransac = 1 - ((1 - r2_ransac) * (n - 1)) / (n - p - 1)
+    mae = np.mean(np.abs(true_z - pred_z_ransac))
+
+    return mse_ransac, r2_adj_ransac, mae
+
+
+

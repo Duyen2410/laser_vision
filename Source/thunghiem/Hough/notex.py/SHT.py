@@ -56,29 +56,28 @@ hough_time = time.time() - start_time
 a_h, b_h, c_h, d_h = float(best_fit[0]), float(best_fit[1]), float(best_fit[2]), float(best_fit[3])
 
 
-def evaluate_models(points, best_plane_hough):
+def evaluate_models(points, best_plane_ransac):
     X = points[:, :2]
     true_z = points[:, 2]
     
-    
-    # Dự đoán z từ mô hình Hough
-    a_h, b_h, c_h, d_h = best_plane_hough
-    pred_z_hough = -(a_h * X[:, 0] + b_h * X[:, 1] + d_h) / c_h
-    
-    # Tính MSE cho từng mô hình
+    # Dự đoán z từ mô hình RANSAC
+    a_r, b_r, c_r, d_r = best_plane_ransac
+    pred_z_ransac = -(a_r * X[:, 0] + b_r * X[:, 1] + d_r)/c_r
+    mse_ransac = mean_squared_error(true_z, pred_z_ransac)
+    sse_ransac = np.sum((true_z - pred_z_ransac) ** 2)
+    sst = np.sum((true_z - np.mean(true_z)) ** 2)
+    # Tính R^2
+    r2_ransac = 1 - (sse_ransac / sst)
+    n = len(points)
+    p = 2  # Số biến độc lập
+    r2_adj_ransac = 1 - ((1 - r2_ransac) * (n - 1)) / (n - p - 1)
+    mae = np.mean(np.abs(true_z - pred_z_ransac))
 
-    mse_hough = mean_squared_error(true_z, pred_z_hough)
-    
-    return mse_hough
+    return mse_ransac, r2_adj_ransac, mae
 
-# Đánh giá các mô hình
-mse_hough = evaluate_models(points, best_fit)
-
-# In kết quả so sánh
-print("\n=== So sánh các phương pháp ===")
-
-print(f"Phương trình mặt phẳng từ Hough: z = {-a_h/c_h:.4f} * x + {-b_h/c_h:.4f} * y + {-d_h/c_h:.4f}")
-
-print(f"Thời gian thực thi với Hough: {hough_time:.4f} giây")
-
-print(f"MSE của Hough transform: {mse_hough:.4f}")
+mse_hough, r_adj_sq, mae_hough = evaluate_models(points, best_fit)
+#print(f"Phương trình mặt phẳng từ RANSAC tự triển khai: z = {a:.4f} * x + {b:.4f} * y + {c:.4f}")
+print(f"Thời gian Calib_laser với RANSAC: {hough_time:.4f} giây")
+print(f"MSE của RANSAC tự triển khai: {mse_hough:.4f}")
+print(f"R^2 : {r_adj_sq:.4f}")
+print(f"MAE: {mae_hough:.4f}")
