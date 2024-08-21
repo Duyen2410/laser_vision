@@ -253,13 +253,13 @@ def get_Laser_Line(gray_img):
     ret2, th2 = cv.threshold(sobel_y, threshold, 255, cv.THRESH_BINARY)
     center2, pos_line_x2, pos_line_y2 = get_Pos_Line_Weld(th2)
     m2, c2, _, __ = ransac_Line(pos_line_x2, pos_line_y2)
-    
+    #********************************************
     point_x = round((c2 - c_new) / (m - m2))
     point_y = round(m2 * point_x + c2)
     point_x_new = point_x + 400 + roi_x1
     point_y_new = point_y + 300 + roi_y1
     print([point_x_new, point_y_new])
-    
+    #********************************************
     return point_x_new, point_y_new
 
 
@@ -282,7 +282,6 @@ def welding_to_base_matrix(welding_point, initial_orientation):
 def process_images_and_calculate_joint_angles(d, a, alpha,fx, fy, cx, cy, a_p, b_p, c_p, d_p, camera_to_welding, intrinsic_matrix, dist_matrix, joint_angles, image_folder):
     T_i, T_list = forward_kinematics(joint_angles, d, a, alpha)
     q_i = np.array(joint_angles)
-    
     p_list = [T_i[:3, 3]]
     draw_list = [T_i[:3, 3]]
     images = sorted([os.path.join(image_folder, img) for img in os.listdir(image_folder) if img.endswith(('.png', '.jpg', '.jpeg'))],
@@ -293,7 +292,7 @@ def process_images_and_calculate_joint_angles(d, a, alpha,fx, fy, cx, cy, a_p, b
         image = cv.imread(image_path)
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         rows,cols = gray_image.shape
-        #gray_image = undistort_images(rows, cols, gray_image, intrinsic_matrix, dist_matrix)
+        gray_image = undistort_images(rows, cols, gray_image, intrinsic_matrix, dist_matrix)
         
         intersection_point = get_Laser_Line(gray_image)
         if intersection_point is not None:
@@ -301,10 +300,10 @@ def process_images_and_calculate_joint_angles(d, a, alpha,fx, fy, cx, cy, a_p, b
             external_matrix = np.linalg.inv(matrix)
             welding_point_real_world = pixel_to_real_world(intersection_point[0], intersection_point[1], fx, fy, cx, cy, a_p, b_p, c_p, d_p, external_matrix)
             p_list.append(welding_point_real_world)
-
-            T = welding_to_base_matrix(p_list[1], T_list[-1][:3, :3])  # Use initial orientation
-            dT6_translation = T[:3, 3] - T_i[:3, 3]  # Chỉ lấy phần dịch chuyển
-            dT6 = np.hstack((dT6_translation, [0, 0, 0]))  # Thêm phần thay đổi góc bằng 0 để tạo vector 6D
+           
+            T = welding_to_base_matrix(p_list[1], T_list[-1][:3, :3])  
+            dT6_translation = T[:3, 3] - T_i[:3, 3]  
+            dT6 = np.hstack((dT6_translation, [0, 0, 0]))  
             J = jacobian(q_i, d, a, alpha)
             inv_J = inverse_jacobian(J)
             dq_i_plus_1 = inv_J @ dT6
@@ -312,8 +311,8 @@ def process_images_and_calculate_joint_angles(d, a, alpha,fx, fy, cx, cy, a_p, b
             T_i, _ = forward_kinematics(q_i_plus_1, d, a, alpha)
             q_i = q_i_plus_1
             draw_list.append(p_list[0])
-            p_list.pop(0)  # Xóa điểm đầu tiên sau khi di chuyển
-            time.sleep(0.1)  # Delay nhỏ để chuyển động mượt hơn
+            p_list.pop(0)  
+            time.sleep(0.1) 
         else:
             print(f"No intersection detected in {image_path}")
     else:
@@ -350,12 +349,11 @@ if __name__ == "__main__":
 
     a_p, b_p, c_p, d_p = 42.9397, -0.8313, -1, 2078.2071
 
-    d = [50500, 0, 0, 79500, 0, 10500]
-    a = [15000, 76000, 14000, 0, 0, 0]
+    d = [505, 0, 0, 795, 0, 380]
+    a = [150, 760, 140, 0, 0, 0]
     alpha = [np.pi/2, 0, np.pi/2, -np.pi/2, np.pi/2, 0]
     image_folder = "C:/Users/ASUS/Desktop/THINKALPHA/233/NCKH/laser-vision/Scan_data/Scan_data2/"
 
-    joint_angles = [0, 0, 0, np.pi/2, 0, 0]
+    joint_angles = [0, 0, 0, 0, -np.pi/2, 0]
     final_joint_angles, draw_list = process_images_and_calculate_joint_angles(d, a, alpha, fx, fy, cx, cy, a_p, b_p, c_p, d_p, camera_to_welding, intrinsic_matrix, dist_mat, joint_angles, image_folder)
-    print(draw_list)
     plot_3d_points(draw_list)

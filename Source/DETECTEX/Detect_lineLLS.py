@@ -213,8 +213,8 @@ def fit_plane_tls(points):
         tmp_b.append(zs[i])
     b = np.matrix(tmp_b).T
     A = np.matrix(tmp_A)
-    fit = (A.T * A).I * A.T * b
-    errors = b - A * fit
+    fit = (A.T @ A).I @ A.T @ b
+    errors = b - A @ fit
     residual = np.linalg.norm(errors)
     return xs, ys, zs, fit
 
